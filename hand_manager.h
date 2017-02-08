@@ -3,7 +3,7 @@
 #include "raw_hand.h"
 #define SAVE_CALL_AMOUNTS 1
 
-int hand_manager_next_hand(unsigned char **hand);
+int hand_manager_next_hand(void);
 int hand_manager_has_more_hands(void);
 int hand_manager_init(const char *file_name);
 void hand_manager_free(void);

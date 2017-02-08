@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <dirent.h>
 #include "hand_manager.h"
 
 //#define DEBUG
@@ -11,8 +12,36 @@
 static unsigned char *_lastchunk;
 static unsigned char *_cp;
 static unsigned char *_lastchunk_end;
+static DIR *_d;
+static const char *_dir_path;
 static FILE *_f;
 static int _all_actions_short;
+
+/* Search for next "*.hhex" file within working dir.
+ * Return 0 on success.
+ * Return 1 if no more files.
+ */
+static inline int _get_new_file(void)
+{
+	struct dirent *_d_entry = NULL;
+	char buf[256];
+
+	while((_d_entry = readdir(_d))) {
+		const char *dot = strrchr(_d_entry->d_name, '.');
+		if(!dot)
+			continue;
+		if(dot && strcmp(dot, ".hhex") == 0) {
+			sprintf(buf, "%s/%s", _dir_path, _d_entry->d_name);
+			_f = fopen(buf, "r");
+			if(!_f) {
+				fprintf(stderr, "%s[%d] can't open file:%s\n", __func__, __LINE__, buf);
+				return 1;
+			}
+			return 0;
+		}
+	}
+	return 1;
+}
 
 static inline int _readchunk(void)
 {
@@ -340,7 +369,7 @@ out:
 /* Updates _cp and returns len of new hand.
  * hand - output parameter, next hand pointer
  */
-int hand_manager_next_hand(unsigned char **hand)
+int hand_manager_next_hand(void)
 {
 	int len = 0;
 	// if hand is splitted between chunks, seek behind, at this hand start, and read full chunk
@@ -356,23 +385,32 @@ int hand_manager_next_hand(unsigned char **hand)
 	_printf_hand(len);
 #endif
 
-	*hand = _cp;
 	_cp += len;
 	return len;
 }
 
 int hand_manager_has_more_hands(void)
 {
-	return(!(feof(_f) && _cp == _lastchunk_end));
+	if(feof(_f) && _cp == _lastchunk_end) {
+		if(_get_new_file())
+			return 0;
+	}
+	return 1;
 }
 
-int hand_manager_init(const char *file_name)
+int hand_manager_init(const char *dir_path)
 {
-	_f = fopen(file_name, "r");
-	if(!_f) {
-		fprintf(stderr, "%s[%d] can't open file\n", __func__, __LINE__);
+	_d = opendir(dir_path);
+	if(!_d) {
+		fprintf(stderr, "%s[%d] can't open path:%s\n", __func__, __LINE__, dir_path);
 		return 1;
 	}
+	_dir_path = dir_path;
+	if(_get_new_file()) {
+		fprintf(stderr, "%s[%d] no *.hhex files exist in path:%s\n", __func__, __LINE__, dir_path);
+		return 1;
+	}
+
 	_lastchunk = malloc(LN);
 	if(!_lastchunk) {
 		fprintf(stderr, "%s[%d] can't allocate memory for lastchunk, size:%d\n", __func__, __LINE__, LN);
@@ -406,6 +444,7 @@ int hand_manager_init(const char *file_name)
 void hand_manager_free(void)
 {
 	free(_lastchunk);
+	closedir(_d);
 	fclose(_f);
 }
 

@@ -4,14 +4,13 @@
 
 int main(void)
 {
-	hand_manager_init("sample/pokerai.org.sample0_1_6_w8.hhex");
+	hand_manager_init("sample");
 
 	int count = 0;
 
 	while(hand_manager_has_more_hands()) {
-		unsigned char *hand;
 
-		hand_manager_next_hand(&hand);
+		hand_manager_next_hand();
 		count++;
 	}
 
